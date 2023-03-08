@@ -110,16 +110,6 @@ class SSRTGlass {
                     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
                 }
 
-                vec3 randDir(vec2 co){
-                    return normalize(
-                        vec3(
-                            fract(sin(dot(co.xy + vec2(13.557, 8.907), vec2(12.9898,78.233))) * 43758.5453),
-                            fract(sin(dot(co.xy + vec2(23.157, 18.907), vec2(12.9898,78.233))) * 43758.5453),
-                            fract(sin(dot(co.xy + vec2(51.707, 38.789), vec2(12.9898,78.233))) * 43758.5453)
-                        ) * 2.0 - 1.0
-                    );
-                }
-
                 // gets the skybox color from a given view direction
                 vec3 getSkyboxColor(vec3 viewDir) {
                     // skybox coordinates
@@ -141,11 +131,15 @@ class SSRTGlass {
                         refracted = ni_over_nt * (v - n * dt) - n * sqrt(discriminant);
 
                         // displace refracted such that it gets closer to v
-                        vec3 rd = randDir(v.xy + n.xz);
+                        vec3 randDir = vec3(
+                            rand(n.xy * 232.0 + 37.0),
+                            rand(v.zy * 232.0 + 93.0),
+                            rand(n.zx * 232.0 + v.xy * 10.0 + 123.0)
+                        );
 
-                        float roughness = 0.0;
+                        float roughness = 0.5;
 
-                        refracted = normalize(refracted + rd * roughness);
+                        refracted = normalize(refracted + randDir * roughness);
                         
                         return true;
                     }
@@ -182,34 +176,6 @@ class SSRTGlass {
                     return hitP;
                 }
 
-                                            // remember that for consistency of the algo, I decided to
-                                            // call this function with the first two parameters inverted (hitP inplace of lastP)
-                vec3 binaryFrontSearchHitPoint(vec3 lastP, vec3 hitP, vec3 rayDir) {
-                    
-                    for(int i = 0; i < 10; i++) {
-                        vec3 midP = (lastP + hitP) * 0.5;
-
-                        // project midP in uv space
-                        vec4 projCoord = vProjViewMatrix * vec4(midP, 1.0);
-                        projCoord.xyz /= projCoord.w;
-
-                        vec2 midpNDC = projCoord.xy;
-                        vec2 midpUV  = midpNDC * 0.5 + 0.5;
-
-                        // get depth at point
-                        vec4 frontBuffer = texture2D(uFrontFaceBuffer, midpUV);
-                        float depth = frontBuffer.w;
-
-                        float midpDepth = abs((vViewMatrix * vec4(midP, 1.0)).z) * uCameraFarInverse;
-                        if(midpDepth > depth) {
-                            hitP = midP;
-                        } else {
-                            lastP = midP;
-                        }
-                    }
-
-                    return hitP;
-                }
 
 
                 vec3 getRefractedColor(vec3 refractionDir, vec3 hitPoint, float refractionIndex) {
@@ -225,23 +191,8 @@ class SSRTGlass {
                     vec3  hitPNormal;
                     float currStepSize = stepSize;
                     float transmissionDistance = 0.0;
-                    float inversionProb = 0.25;
-                    float direction = 0.0;   // 0 if forward, 1 if backward
-                    float happened = 0.0;
                     for(int i = 0; i < 20; i++) {
-                        float r1 = rand(p.xy);
-                        if(r1 < inversionProb && happened < 0.5) {
-                            // refractionDir = normalize(refractionDir + randDir(p.xy + p.zz));
-                            refractionDir = randDir(p.xy + p.zz);
-                            // trasnform to camera space to determine the direction
-                            // direction = abs(vViewMatrix * vec4(refractionDir,0.0)).z < 0.0 ? 1.0 : 0.0;
-                            direction = (vViewMatrix * vec4(refractionDir,0.0)).z < 0.0 ? 0.0 : 1.0;
-                            // direction = 0.0;
-                            // happened = 1.0;
-                        }
-
                         p += currStepSize * refractionDir;
-                        transmissionDistance += currStepSize;
 
                         // project p in uv space
                         vec4 projCoord = vProjViewMatrix * vec4(p, 1.0);
@@ -250,19 +201,16 @@ class SSRTGlass {
                         vec2 pNDC = projCoord.xy;
                         vec2 pUV  = pNDC * 0.5 + 0.5;
 
-
                         // get depth at point
                         vec4 backBuffer = texture2D(uBackFaceBuffer, pUV);
-                        vec4 frontBuffer = texture2D(uFrontFaceBuffer, pUV);
-                        float depth  = backBuffer.w;
-                        vec3 norm    = backBuffer.xyz;
-                        float fdepth = frontBuffer.w;
-                        vec3 fnorm   = frontBuffer.xyz;
+                        float depth = backBuffer.w;
+                        vec3 norm   = backBuffer.xyz;
 
                         // get p depth
                         float pDepth = abs((vViewMatrix * vec4(p,1.0)).z) * uCameraFarInverse;
 
-                        if(pDepth > depth && direction < 0.5) {
+
+                        if(pDepth > depth) {
 
                             vec3 hitp = binarySearchHitPoint(lastP, p, refractionDir);
                             p = hitp;
@@ -279,29 +227,13 @@ class SSRTGlass {
                             // ************ get the hitpoint normal - END
 
                             break;
-                        } else if (pDepth < fdepth && direction > 0.5) {
-                            vec3 hitp = binaryFrontSearchHitPoint(p, lastP, refractionDir);
-                            p = hitp;
-
-                            // ************ get the hitpoint normal
-                            vec4 projCoord = vProjViewMatrix * vec4(p, 1.0);
-                            projCoord.xyz /= projCoord.w;
-    
-                            vec2 pNDC = projCoord.xy;
-                            vec2 pUV  = pNDC * 0.5 + 0.5;
-    
-                            // get depth at point
-                            hitPNormal  = texture2D(uFrontFaceBuffer, pUV).xyz;
-                            // ************ get the hitpoint normal - END
-
-                            break;
                         }
 
                         lastP = p;
                         currStepSize *= stepMult;
                     }
 
-                    // transmissionDistance = length(hitPoint - p);
+                    transmissionDistance = length(hitPoint - p);
 
 
 
@@ -397,7 +329,6 @@ class SSRTGlass {
                     // } else {
                     //     transmColor = blue;
                     // }
-                    const float finalMultiplier = 2.5;
                     const vec3 yellow = vec3(0.005, 0.175, 1.99) * 1.8;
                     const vec3 red    = vec3(0.1, 0.675, 0.60)   * 1.7;
                     const vec3 teal   = vec3(0.50, 0.10, 0.05)   * 1.85;
@@ -417,7 +348,7 @@ class SSRTGlass {
                     } else {
                         transmColor = blue;
                     }
-                    transm = exp(-transmissionDistance * transmColor * uExtintionFactor * finalMultiplier);
+                    transm = exp(-transmissionDistance * transmColor * uExtintionFactor);
 
 
                     // vec3 transm = vec3(1.0);
@@ -547,12 +478,9 @@ class SSRTGlass {
                     
                     vec3 col = reflectedCol * reflect_prob * uReflectionFactor + 
                         getRefractedColor(refracted, vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob);
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.0, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob)  * 0.333 * 0.5 +
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.15, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob) * 0.333 * 0.5 +
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.35, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob) * 0.333 * 0.5 +
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.0, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob)  * 0.333 * 0.5 +
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.15, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob) * 0.333 * 0.5 +
-                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.35, 0.0)), vWorldSpaceFragPos, refractionIndex) * (1.0 - reflect_prob) * 0.333 * 0.5;
+                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.0, 0.0)), vWorldSpaceFragPos) * (1.0 - reflect_prob) * 0.333 +
+                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.15, 0.0)), vWorldSpaceFragPos) * (1.0 - reflect_prob) * 0.333 +
+                        // getRefractedColor(normalize(refracted + vec3(0.0, 0.35, 0.0)), vWorldSpaceFragPos) * (1.0 - reflect_prob) * 0.333;
                     
 
                     // col = getRefractedColor(refracted, vWorldSpaceFragPos) * (1.0 - reflect_prob);

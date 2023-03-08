@@ -26,6 +26,7 @@ let dlCount = 0;
 function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.setPixelRatio(1);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.8;
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -54,9 +55,11 @@ function init() {
     // path = "assets/birbeck_street_underpass.jpg";
     // path = "assets/sculpture_exhibition.jpg";
     path = "assets/aerodynamics_workshop_blur3.jpg";
+    // path = "assets/floor5lr.jpg";
 
     let radpath = path;
     radpath = "assets/aerodynamics_workshop.jpg";
+    // radpath = "assets/floor5lr.jpg";
     // radpath = "assets/sculpture_exhibition.jpg";
     // radpath = "assets/birbeck_street_underpass.jpg";
 
@@ -76,6 +79,7 @@ function init() {
 
     let radbox = new THREE.TextureLoader().load(radpath, function(texture) {
         radbox = texture;
+        radbox.generateMipmaps = true;
         radbox.wrapS = THREE.ClampToEdgeWrapping;
         radbox.wrapT = THREE.ClampToEdgeWrapping;
         radbox.magFilter = THREE.LinearMipmapLinearFilter;

@@ -225,7 +225,7 @@ class SSRTGlass {
                     vec3  hitPNormal;
                     float currStepSize = stepSize;
                     float transmissionDistance = 0.0;
-                    float inversionProb = 0.25;
+                    float inversionProb = 0.5;
                     float direction = 0.0;   // 0 if forward, 1 if backward
                     float happened = 0.0;
                     for(int i = 0; i < 20; i++) {
@@ -234,10 +234,9 @@ class SSRTGlass {
                             // refractionDir = normalize(refractionDir + randDir(p.xy + p.zz));
                             refractionDir = randDir(p.xy + p.zz);
                             // trasnform to camera space to determine the direction
-                            // direction = abs(vViewMatrix * vec4(refractionDir,0.0)).z < 0.0 ? 1.0 : 0.0;
-                            direction = (vViewMatrix * vec4(refractionDir,0.0)).z < 0.0 ? 0.0 : 1.0;
+                            direction = abs(vViewMatrix * vec4(refractionDir,0.0)).z < 0.0 ? 1.0 : 0.0;
                             // direction = 0.0;
-                            // happened = 1.0;
+                            happened = 1.0;
                         }
 
                         p += currStepSize * refractionDir;
@@ -279,7 +278,7 @@ class SSRTGlass {
                             // ************ get the hitpoint normal - END
 
                             break;
-                        } else if (pDepth < fdepth && direction > 0.5) {
+                        } else if (pDepth < depth && direction > 0.5) {
                             vec3 hitp = binaryFrontSearchHitPoint(p, lastP, refractionDir);
                             p = hitp;
 
@@ -291,7 +290,7 @@ class SSRTGlass {
                             vec2 pUV  = pNDC * 0.5 + 0.5;
     
                             // get depth at point
-                            hitPNormal  = texture2D(uFrontFaceBuffer, pUV).xyz;
+                            hitPNormal  = texture2D(uBackFaceBuffer, pUV).xyz;
                             // ************ get the hitpoint normal - END
 
                             break;
@@ -397,7 +396,7 @@ class SSRTGlass {
                     // } else {
                     //     transmColor = blue;
                     // }
-                    const float finalMultiplier = 2.5;
+                    const float finalMultiplier = 1.5;
                     const vec3 yellow = vec3(0.005, 0.175, 1.99) * 1.8;
                     const vec3 red    = vec3(0.1, 0.675, 0.60)   * 1.7;
                     const vec3 teal   = vec3(0.50, 0.10, 0.05)   * 1.85;
